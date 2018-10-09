@@ -1,0 +1,22 @@
+{
+  "name": "ImgWriter",
+  "version": "1.0.0",
+  "description": "Che ne so",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron main.js"
+  },
+  "author": "Tancredi",
+  "license": "MIT",
+  "dependencies": {
+    "canvas": "^1.6.12",
+    "get-pixels": "^3.3.2",
+    "save-pixels": "^2.3.4",
+    "stream": "0.0.2",
+    "tar": "^4.4.6"
+  },
+  "devDependencies": {
+    "electron": "^2.0.9",
+    "electron-packager": "^12.1.2"
+  }
+}

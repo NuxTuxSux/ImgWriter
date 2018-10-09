@@ -1,0 +1,347 @@
+<html>
+    <head>
+        <title>ImgWriter</title>
+        <!-- Stylesheets -->
+        <link rel="stylesheet" href="css/photon.min.css">
+
+        <script>
+            const {ipcRenderer} = require('electron')
+    
+            let img, snd
+
+            let filesTable
+
+            //let dataToWrite = null
+
+            window.onload = function () {
+                img = document.getElementById('img')
+                snd = document.getElementById('secondTab')
+                filesBtns = document.getElementById('filesBtns')
+            }
+
+            function sndTabClick() {
+                snd.style['display'] = null
+                img.style['display'] = 'none'
+                if (textFilesRadio.state == 'files')
+                    filesBtns.style['display'] = null
+                document.getElementById('imgTab').className = "tab-item"
+                document.getElementById('sndTab').className = "tab-item active"
+            }
+            function imgTabClick() {
+                snd.style['display'] = 'none'
+                img.style['display'] = null
+                filesBtns.style['display'] = 'none'
+                document.getElementById('sndTab').className = "tab-item"
+                document.getElementById('imgTab').className = "tab-item active"
+            }
+
+            // Definiamo una classe che gestisca le righe nella tabella
+
+            class TableCtrl {
+            
+                constructor (tbl, flds = null) {
+                    this.table = tbl
+                    this.length = 0
+                    this.rows = []
+                    this._selectedItems = []
+
+                    if (flds) {
+                        const thead = document.createElement('thead')
+                        const tr = document.createElement('tr')
+                        var th
+                        for (let i = 0; i < flds.length; i++) {
+                            th = document.createElement('th')
+                            th.innerHTML = flds[i]
+                            tr.appendChild(th)
+                        }
+                        thead.appendChild(tr)
+                        tbl.appendChild(thead)
+                    }
+                    tbl.appendChild(document.createElement('tbody'))
+                }
+
+                addRow (rowList) {
+                    let row = document.createElement('tr')
+                    let cell
+                    this.rows.push(rowList)
+                    const _selectedItems = this._selectedItems
+                    _selectedItems.push(false)
+                    
+                    let N = this.rows.length
+
+                    for (let i = 0; i < rowList.length; i++) {
+                        cell = document.createElement('td')
+                        cell.innerHTML = rowList[i]
+                        row.appendChild(cell)
+                    }
+                    row.selected = false
+                    row.index = N
+                    
+                    row.onclick = function () {
+                        if (this.selected) {
+                            this.style['color'] = null
+                            this.style['background-color'] = N%2==0?'#f5f5f4':'#fff'
+                            this.selected = false
+                        } else {
+                            this.style['color'] = '#fff'
+                            this.style['background-color'] = '#116cd6'
+                            this.selected = true
+                        }
+                        _selectedItems[N-1] = !_selectedItems[N-1]
+                    }
+                    this.table.children[1].appendChild(row)
+                }
+
+                
+                clear () {
+                    this.rows = []
+                    this._selectedItems = []
+                    this.length = 0
+                    var tbody = this.table.children[1]
+                    while (tbody.firstChild)
+                        tbody.removeChild(tbody.firstChild)
+                }
+
+                selectedItems() {
+                    return this.rows.filter((r,i) => this._selectedItems[i])
+                }
+
+                getCompletePaths() {
+                    return this.rows.map(r => [r[1],r[0]].join('/'))
+                }
+            }
+
+            class RadioBtnCtrl {
+
+                constructor (btnGroup) {
+                    this.btnGroup = btnGroup
+                    this.buttons = this.btnGroup.children
+                    this.stateIndex = 0
+                    this.state = this.buttons[0].value
+
+                    // bind onclick of buttons
+                    const btns = this.buttons
+                    let ctrl = this
+                    for (let i = 0; i < btns.length; i++)
+                        btns[i].onclick = function () {
+                            for (let j = 0; j < btns.length; j++) {
+                                if (j == i) {
+                                    btns[j].classList.add('active')
+                                } else {
+                                    btns[j].classList.remove('active')
+                                }
+                            }
+                            if (ctrl.stateIndex != i) {
+                                ctrl.stateIndex = i
+                                ctrl.state = ctrl.buttons[i].value
+                                ctrl.onchange()
+                            }
+
+                        }
+                }
+                
+                // override this
+                onchange() {
+                }
+
+            }
+
+        </script>
+        <style>
+            #img {
+               max-width: 90%;
+               max-height: 90%;
+               margin-top: 2%;
+            }
+            #textarea {
+                -moz-box-sizing:border-box;
+                -webkit-box-sizing:border-box;
+                box-sizing:border-box;
+                display:block;
+                
+                width:98%;
+                height: 86%;
+                margin:2px;
+                padding:4px;
+                background:#EEF;
+                border:1px solid #333;
+                overflow-y:auto;
+                overflow-x:hidden;
+                margin-top: 1%;
+                margin-left: 1%;
+                margin-right: 1%;
+                margin-bottom: 1%;
+            }
+            
+            html, body {
+                height: 100%;
+                overflow: hidden;
+                background-color: transparent;
+            }
+            body {
+                transform: scale(1);
+                border: 0px  transparent;
+                border-radius: 13px;
+            }
+            
+
+            h1 {
+                transform: scale(1.2)
+            }
+
+            .tab-item {
+                min-height: 25px;
+            }
+
+                       
+        </style>
+    </head>
+    <body>
+
+        <div class="window" style="flex-direction: column;">
+            <header class="toolbar toolbar-header" style="-webkit-app-region: drag; min-height: 55px;">
+                <h1 class="title">ImgWriter</h1>
+                
+                <div class="toolbar-actions">
+                    <!--Open/Save/Load buttons-->
+                    <div class="btn-group">
+                        <button onclick="ipcRenderer.send('open')" class="btn btn-default">
+                            <span class="icon icon-folder icon-text"></span>Open
+                        </button>
+                        <button class="btn btn-default" onclick="saveBtn()">
+                            <span class="icon icon-upload icon-text"></span>Save as...
+                        </button>
+                        <button class="btn btn-default" onclick="loadBtn()">
+                            <span class="icon icon-download icon-text"></span>Load
+                        </button>
+                    </div>
+                    
+                    <!--Text/Files Radio-->
+                    <div class="btn-group" id="textFilesRadioBtn">
+                        <button class="btn btn-default active" value="text">
+                            Text
+                        </button>
+                        <button class="btn btn-default" value="files">
+                            Files
+                        </button>
+                    </div>
+                    
+                    <!--Close-->
+                    <button onclick="window.close()" class="btn btn-default pull-right">
+                        <span class="icon icon-cancel-circled"></span>
+                    </button>
+
+                    <!--Files-Pan Buttons-->
+                    <div class="btn-group pull-right" id="filesBtns" style="display:none">
+                        <button class="btn btn-primary" onclick="addBtn()">Add</button>
+                        <button class="btn btn-default" onclick="filesTable.clear()">Clear</button>
+                        <button class="btn btn-default" onclick="extractBtn()">Extract</button>
+                    </div>
+
+
+                </div>
+                
+            </header>
+            
+                <div class="tab-group">
+                    <div id="imgTab" class="tab-item active" onclick="imgTabClick()">
+                        <span class="icon icon-picture"></span>
+                        Image
+                    </div>
+
+                    <div id="sndTab" class="tab-item" onclick="sndTabClick()">
+                        <span class="icon icon-keyboard"></span>
+                        Data
+                    </div>    
+                </div>
+                
+            <div class="window-content">
+                <center><img id="img" src="prova.jpeg" style='height: 100%; width: 100%; object-fit: contain;'></center>
+                <div id="secondTab" style="flex:1;display: none">
+                    
+                    <div id="testo">
+                        <center><textarea name="Nome" id="textarea" class="form-control" autofocus></textarea></center>
+                    </div>
+                    <div id="filesTableDiv" style="display:none">
+                        <table class="table-striped" id="filesTable"></table>
+                    </div>
+                </div>
+            </div>
+            <!--<footer class="toolbar toolbar-footer"></footer>-->
+        </div>
+
+
+        <script>
+            filesTable = new TableCtrl(document.getElementById('filesTable'), ['Name', 'Path', 'Size'])            
+
+            textFilesRadio = new RadioBtnCtrl(document.getElementById('textFilesRadioBtn'))
+            
+
+            ipcRenderer.on('load', function (e, data) {
+                img.setAttribute('src', data)
+            })
+
+            ipcRenderer.on('textRead', function (e, text) {
+                textarea.value = text
+            })
+
+            ipcRenderer.on('filesRead', function(e, filesList) {
+                filesTable.clear()
+                for (fileItem in filesList) {
+                    filesTable.addRow(filesList[fileItem])
+                }
+            })
+
+            ipcRenderer.on('addFile', function (e, rows) {
+                for (let i in rows)
+                    filesTable.addRow(rows[i])
+            })
+
+            textFilesRadio.onchange = function () {
+                if (textFilesRadio.state == 'text') {
+                    document.getElementById('testo').style['display'] = null
+                    document.getElementById('filesTableDiv').style['display'] = 'none'
+                    filesBtns.style['display'] = 'none'
+                } else {
+                    document.getElementById('testo').style['display'] = 'none'
+                    document.getElementById('filesTableDiv').style['display'] = null
+                    filesBtns.style['display'] = snd.style['display']
+                }
+            }
+
+
+            function saveBtn() {
+                // invio il contenuto della textarea oppure la lista dei files, se la sbriga lui
+                if (textFilesRadio.state == 'text')
+                    ipcRenderer.send('saveImgTxt', textarea.value)
+                else
+                    ipcRenderer.send('saveImgFiles', filesTable.getCompletePaths())
+            }
+
+            function loadBtn() {
+                if (textFilesRadio.state == 'text') {
+                    ipcRenderer.send('loadImgTxt')
+                } else {
+                    ipcRenderer.send('loadImgFiles')
+                }
+            }
+
+            function extractBtn() {
+                // fare in modo che estragga tutto?
+                ipcRenderer.send('extract', filesTable.getCompletePaths())
+            }
+
+            function addBtn() {
+                ipcRenderer.send('addFile')
+            }
+
+        </script>
+
+    </body>
+</html>
+
+
+<!--    TODO
+    · Fare un controller per il tab-group
+    · Aggiornare l'immagine?
+-->
