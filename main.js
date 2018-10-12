@@ -18,7 +18,13 @@ let tarStream
 let data
 
 app.on('ready', function () {
-    window = new BrowserWindow({frame:false, autoHideMenuBar: true, height:700, transparent: true})
+    window = new BrowserWindow({
+        autoHideMenuBar: true,
+        height:700,
+        //radii: [13,13,13,13],
+        frame:false,
+        transparent: true,
+    })
 
 
     window.loadURL(url.format({

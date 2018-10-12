@@ -34,3 +34,10 @@ savePixels(x, "png").pipe(process.stdout)
 readtar = fs.createReadStream('prova.tar')
 readtar.pipe(tar.t({onentry: entry=>{console.log(entry)}}))
 
+/////////////////////////////////////////
+
+b = new Buffer('€').toJSON().data
+
+c = new Buffer(b).toString('utf8')    // utf8 opzionale
+
+Buffer.byteLenght('€','utf8')         // idem
