@@ -41,3 +41,6 @@ b = new Buffer('€').toJSON().data
 c = new Buffer(b).toString('utf8')    // utf8 opzionale
 
 Buffer.byteLenght('€','utf8')         // idem
+
+l = [1,2,3]
+l.concat([4,5,6])

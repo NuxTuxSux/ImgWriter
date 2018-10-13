@@ -107,6 +107,7 @@
                 }
 
                 getCompletePaths() {
+                    // sistemare!!
                     return this.rows.map(r => [r[1],r[0]].join('/'))
                 }
             }
@@ -316,7 +317,7 @@
                 // invio il contenuto della textarea oppure la lista dei files, se la sbriga lui
                 if (textFilesRadio.state == 'text')
                     ipcRenderer.send('saveImgTxt', textarea.value)
-                else
+                else    // !!!
                     ipcRenderer.send('saveImgFiles', filesTable.getCompletePaths())
             }
 

@@ -7,6 +7,8 @@ const zeros = require('zeros')
 const fs = require('fs')
 const {Readable} = require('stream')
 const tar = require('tar')
+const streamBuffers = require('stream-buffers')
+
 
 
 const {app, BrowserWindow, Menu, dialog, ipcMain} = electron
@@ -51,31 +53,36 @@ ipcMain.on('open', function () {
 })
 
 ipcMain.on('saveImgTxt', function (err, text) {
-    writeStrToImage(text)
+    //console.log(new Buffer(text).toJSON())
+    writeBytesToImage(new Buffer(text).toJSON().data)
 })
+
+// NON DEVO SALVARE SU STRINGHE!!
 
 ipcMain.on('saveImgFiles', function (err, fileList) {
     // Sarebbe meglio usare uno string builder-buffer, ottimizzazione successiva !!
     console.log(fileList)
-    var buffer = ''
+    let buffer = []
     tar.c(fileList).on('data', function (text) {
-        buffer += text
+        //console.log('data:'+text)
+        buffer = buffer.concat(new Buffer(text).toJSON().data)
     }).on('end', function (err) {
         if (err) {
             console.log('Error:' + err)
             return
         }
-        writeStrToImage(buffer)
+        writeBytesToImage(buffer)
+        console.log('buffer:'+buffer)
     })
 })
 
-function writeStrToImage(text) {
+function writeBytesToImage(buf) {
     if (!imageData) {
         console.log('Image not loaded yet')
         return
     }
 
-    if (!text) {
+    if (!buf) {
         console.log('There\'s no data to save')
         return
     }
@@ -88,7 +95,7 @@ function writeStrToImage(text) {
     // controlla se ci sono dati da salvare
 
     // destino i primi tre byte alla dimensione dell'output
-    var dimByte = text.length
+    var dimByte = buf.length
 
     for (x = 0; x < 3; x++) {
         for (j = 0; j < 4; j++) {
@@ -97,9 +104,9 @@ function writeStrToImage(text) {
             dimByte >>= 2
         }
     }
-    for (i = 3; i < text.length + 3; i++) {
+    for (i = 3; i < buf.length + 3; i++) {
 
-        ch = text[i-3].charCodeAt(0)
+        ch = buf[i-3]
         x = i % width
         y = Math.floor(i/width)
 
@@ -123,9 +130,9 @@ function writeStrToImage(text) {
 }
 
 
-function readStrFromImage() {
+function readBytesFromImage() {
     // !! stringbuilder
-    var byte = 0, len, text = ''
+    var byte = 0, len, buf = []
     const width = imageData.shape[0]
 
     for (x = 0; x < 3; x++) {
@@ -140,31 +147,42 @@ function readStrFromImage() {
         for (j = 0; j < 4; j++) {
             byte += (imageData.get(i % width, Math.floor(i/width), j) % 4) << (2*j)
         }
-        text += String.fromCharCode(byte)
+        buf.push(byte)
     }
-    return text
+//    console.log(buf)
+    return buf
 }
 
 ipcMain.on('loadImgTxt', function (err, text) {
-    window.webContents.send('textRead', readStrFromImage())
+    window.webContents.send('textRead', new Buffer(readBytesFromImage()).toString())
 })
 
 function getTarStream() {
-    tarStr = readStrFromImage()
+    // proviamo
+    var tarStream = new streamBuffers.ReadableStreamBuffer({
+        frequency: 10,
+        chunkSize: 2048
+      });
+      
+    tarStream.put(new Buffer(readBytesFromImage()));
+    tarStream.stop()
 
-    const tarStream = new Readable()
-    tarStream._read = () => {}
-    tarStream.push(tarStr)
-    tarStream.push(null)
+    //tarStr = readBytesFromImage().toString()
+    //console.log(readBytesFromImage())
+    //const tarStream = new Readable()
+    //tarStream._read = () => {}
+    //tarStream.push(tarStr)
+    //tarStream.push(null)
     return tarStream
 }
 
 ipcMain.on('loadImgFiles', function (err) {    
-    loadedFilesList = []
+    let loadedFilesList = []
 
     getTarStream().pipe(
         tar.t({
             onentry: entry => {
+                console.log(entry)
                 splittedPath = entry['path'].split('/')
                 loadedFilesList.push([splittedPath.pop(), splittedPath.join('/'), entry['size']])
             }
@@ -172,6 +190,7 @@ ipcMain.on('loadImgFiles', function (err) {
         })
     ).on('end',function () {
         window.webContents.send('filesRead', loadedFilesList)
+        console.log('lista:' + loadedFilesList)
     })
 })
 
@@ -223,5 +242,5 @@ FUND
 · eliminare il focus dalla textarea
 
 
-
+BUGS
 */
